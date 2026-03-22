@@ -1,0 +1,34 @@
+InternConnect (Master Directive)You are an AI coding assistant continuing development of InternConnect, an Internship Marketplace that uses Graph Theory (FalkorDB) to match students with internships based on skill paths. The repo is at: https://github.com/AIim12/InternConnect.git🏗️ Tech StackLayerTechDatabaseFalkorDB (Graph DB, runs via Docker on port 6379)BackendPython FastAPI + uvicornAuthJWT-based RBAC (student / employer roles)FrontendReact + Vite + Tailwind CSSGraph Vizreact-force-graph-2d🎯 PROFESSOR'S GRADING CRITERIA (FOR 120/100 SCORE)To achieve the maximum grade and 20% bonus, you must ensure the code reflects these specific academic requirements:Entity & Relation Depth (+10 Bonus): Ensure the Graph contains at least 11-12 entities (Nodes/Edges). Beyond Students and Jobs, include: Industry, Certification, Project, Feedback, Location, and Notification.Robustness & Security (25% of Grade): All FastAPI endpoints MUST have:Strict Pydantic v2 validation (No empty strings, valid email formats).Advanced Error Handling: Custom exception handlers to prevent raw stack traces.Attack Resistance: Sanitize all Cypher query inputs to prevent Graph Injection.Technical Jargon Readiness (40% of Grade): The code structure must clearly demonstrate:M-to-N Relationships: (e.g., StudentSkills as a link in the graph).ACID Compliance: Mentioned in comments where data integrity is handled.Repository Pattern: Keeping database logic isolated from routes.Presentation Support: Generate a TECHNICAL_REPORT.md summarizing the Database, FastAPI, Frontend, and Validation logic so the presenter can memorize it for the 3-minute time limit.📁 Project StructureInternConnect/
+├── docker-compose.yml       # Starts FalkorDB
+├── backend/
+│   ├── main.py              # FastAPI entry point
+│   ├── database.py          # FalkorDB connection
+│   ├── models.py            # Pydantic v2 schemas
+│   ├── store.py             # Graph store logic
+│   ├── seed.py              # DB seeder (students, skills, internships)
+│   ├── requirements.txt
+│   ├── routes/
+│   │   ├── auth.py          # Login/signup (JWT)
+│   │   ├── internships.py
+│   │   ├── skills.py
+│   │   ├── matching.py      # Skill-match endpoints
+│   │   └── graph.py
+│   └── repositories/
+│       └── match_repo.py    # Core graph matching logic
+└── frontend/
+    └── src/
+        ├── App.jsx           # Routes: /, /student, /employer, /faq
+        ├── AuthContext.jsx   # Auth state
+        └── pages/
+            ├── Home.jsx            # Hero + live skill graph
+            ├── StudentDashboard.jsx # Kanban, smart match feed, skill map
+            ├── EmployerDashboard.jsx # Talent heatmap, job posting
+            └── FAQ.jsx
+🧠 Core LogicThe graph uses 3 key relationships:HAS_SKILL — student → skillREQUIRES_SKILL — internship → skillRELATED_TO — skill ↔ skill (for learning paths)match_repo.py does:Skill-gap analysis: finds what skills a student is missing in O(1) graph traversal.Learning paths: uses :RELATED_TO*1..2 to bridge skill gaps intelligently.Returns match_percentage ranked results.✅ What's Done[x] Full backend: auth, internships, skills, matching, graph routes.[x] All 4 frontend pages built and styled.[x] DB seed script with dummy data.[x] Graph visualization on homepage.🔲 What Still Needs Work (Priority Order)Frontend ↔ Backend integration: Wire up all API calls in the React pages.Pydantic Validation Refinement: Ensure all schemas meet the "Robustness" grading criteria.End-to-end testing: Verify the matching & skill-gap logic works with real graph data.UI Polish: Add transitions (Framer Motion) and ensure responsiveness.▶️ How to RunBash# Terminal 1 - DB
+docker-compose up -d
+
+# Terminal 2 - Backend
+cd backend && source venv/bin/activate && uvicorn main:app --reload
+
+# Terminal 3 - Frontend
+cd frontend && npm run dev
