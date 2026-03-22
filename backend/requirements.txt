@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+falkordb
+PyJWT
+passlib
+bcrypt
+python-multipart

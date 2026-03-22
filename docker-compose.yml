@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: intern_connect_falkordb
+    ports:
+      - "6379:6379"
+      - "3000:3000" # FalkorDB browser GUI (if available)
+    volumes:
+      - falkordb_data:/data
+
+volumes:
+  falkordb_data:
