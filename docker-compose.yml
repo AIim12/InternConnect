@@ -1,14 +1,16 @@
 version: '3.8'
 
 services:
-  falkordb:
-    image: falkordb/falkordb:latest
-    container_name: intern_connect_falkordb
+  mysql:
+    image: mysql:8.0
+    container_name: internconnect_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: internconnect
     ports:
-      - "6379:6379"
-      - "3000:3000" # FalkorDB browser GUI (if available)
+      - "3306:3306"
     volumes:
-      - falkordb_data:/data
+      - mysql_data:/var/lib/mysql
 
 volumes:
-  falkordb_data:
+  mysql_data:

@@ -3,8 +3,9 @@ from pydantic import BaseModel
 from typing import Optional
 from backend.store import (
     register_user, login_user, create_token, decode_token,
-    update_profile, get_profile,
-    create_internship, get_all_internships, get_employer_internships,
+    update_profile, get_profile, update_employer_profile, get_employer_profile,
+    create_internship, update_internship, delete_internship,
+    get_all_internships, get_employer_internships,
     apply_to_internship, get_applicants, update_application_status,
     get_student_applications, compute_match, get_user
 )
@@ -27,6 +28,30 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = ""
     skills: Optional[list] = []  # list of skill name strings
 
+class EmployerProfileUpdate(BaseModel):
+    company_name: str
+    company_bio: Optional[str] = ""
+
+class InternshipInput(BaseModel):
+    title: str
+    description: str
+    required_skills: list  # [{"name": str, "level": int}]
+    hourly_rate: Optional[float] = None
+    working_hours: Optional[str] = None
+    remote: Optional[bool] = False
+
+class InternshipUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    required_skills: Optional[list] = None
+    hourly_rate: Optional[float] = None
+    working_hours: Optional[str] = None
+    remote: Optional[bool] = None
+
+class ApplicationStatusUpdate(BaseModel):
+    status: str
+    message: Optional[str] = None
+
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 def get_current_user(authorization: str = Header(...)):
@@ -43,19 +68,20 @@ def get_current_user(authorization: str = Header(...)):
 
 @router.post("/register")
 def register(req: RegisterRequest):
-    result = register_user(req.email, req.password, req.full_name, req.role)
+    result = register_user(req.email, req.full_name, req.password, req.role)
     if "error" in result:
         raise HTTPException(status_code=409, detail=result["error"])
-    token = create_token({"sub": req.email, "role": req.role, "full_name": req.full_name})
+    token = create_token(req.email, req.role)
     return {"access_token": token, "token_type": "bearer", "role": req.role}
 
 @router.post("/login")
 def login(req: LoginRequest):
-    user = login_user(req.email, req.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    token = create_token({"sub": user["email"], "role": user["role"], "full_name": user["full_name"]})
-    return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+    result = login_user(req.email, req.password)
+    if "error" in result:
+        raise HTTPException(status_code=401, detail=result["error"])
+    user = get_user(req.email)
+    token = create_token(req.email, result["role"])
+    return {"access_token": token, "token_type": "bearer", "role": result["role"]}
 
 @router.get("/me")
 def me(authorization: str = Header(...)):
@@ -78,19 +104,32 @@ def fetch_profile(authorization: str = Header(...)):
     payload = get_current_user(authorization)
     return get_profile(payload["sub"])
 
-# ─── Internships ──────────────────────────────────────────────────────────────
+# ─── Employer profile ──────────────────────────────────────────────────────────
 
-class InternshipInput(BaseModel):
-    title: str
-    description: str
-    required_skills: list  # [{"name": str, "level": int}]
+@router.put("/employer/profile")
+def set_employer_profile(req: EmployerProfileUpdate, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "employer":
+        raise HTTPException(status_code=403, detail="Only employers can update company profile")
+    result = update_employer_profile(payload["sub"], req.company_name, req.company_bio)
+    return result
+
+@router.get("/employer/profile")
+def fetch_employer_profile(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "employer":
+        raise HTTPException(status_code=403, detail="Only employers can fetch company profile")
+    return get_employer_profile(payload["sub"])
+
+# ─── Internships ──────────────────────────────────────────────────────────────
 
 @router.post("/internships")
 def post_internship(req: InternshipInput, authorization: str = Header(...)):
     payload = get_current_user(authorization)
     if payload["role"] != "employer":
         raise HTTPException(status_code=403, detail="Only employers can post internships")
-    return create_internship(req.title, req.description, req.required_skills, payload["sub"])
+    return create_internship(req.title, req.description, req.required_skills, payload["sub"],
+                            req.hourly_rate, req.working_hours, req.remote)
 
 @router.get("/internships")
 def list_internships():
@@ -100,6 +139,27 @@ def list_internships():
 def my_internships(authorization: str = Header(...)):
     payload = get_current_user(authorization)
     return get_employer_internships(payload["sub"])
+
+@router.patch("/internships/{internship_id}")
+def update_intn(internship_id: int, req: InternshipUpdate, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "employer":
+        raise HTTPException(status_code=403, detail="Only employers can update internships")
+    result = update_internship(internship_id, req.title, req.description, req.required_skills,
+                              req.hourly_rate, req.working_hours, req.remote)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@router.delete("/internships/{internship_id}")
+def delete_intn(internship_id: int, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "employer":
+        raise HTTPException(status_code=403, detail="Only employers can delete internships")
+    result = delete_internship(internship_id, payload["sub"])
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 # ─── Applications ─────────────────────────────────────────────────────────────
 
@@ -121,11 +181,11 @@ def applicants(internship_id: int, authorization: str = Header(...)):
     return get_applicants(internship_id)
 
 @router.patch("/internships/{internship_id}/applicants/{student_email}")
-def update_status(internship_id: int, student_email: str, status: str, authorization: str = Header(...)):
+def update_status(internship_id: int, student_email: str, req: ApplicationStatusUpdate, authorization: str = Header(...)):
     payload = get_current_user(authorization)
     if payload["role"] != "employer":
         raise HTTPException(status_code=403, detail="Only employers can update status")
-    result = update_application_status(internship_id, student_email, status)
+    result = update_application_status(internship_id, student_email, req.status, req.message)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
@@ -141,13 +201,3 @@ def my_applications(authorization: str = Header(...)):
         match = compute_match(profile.get("skills", []), app.get("required_skills", []))
         enriched.append({**app, **match})
     return enriched
-
-@router.get("/internships/{internship_id}/match")
-def match_me(internship_id: int, authorization: str = Header(...)):
-    payload = get_current_user(authorization)
-    profile = get_profile(payload["sub"])
-    from backend.store import _internships
-    intern = next((i for i in _internships if i["id"] == internship_id), None)
-    if not intern:
-        raise HTTPException(status_code=404, detail="Internship not found")
-    return compute_match(profile.get("skills", []), intern.get("required_skills", []))

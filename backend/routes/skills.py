@@ -1,20 +1,18 @@
-from fastapi import APIRouter, Depends
-from backend.repositories.match_repo import MatchRepository
+from fastapi import APIRouter, HTTPException
+from backend import store
 from backend.models import Skill
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
-def get_match_repo():
-    return MatchRepository()
-
-@router.post("/")
-def create_skill(skill: Skill, repo: MatchRepository = Depends(get_match_repo)):
-    return repo.create_skill(skill.name, skill.domain)
-
 @router.post("/{skill1}/related/{skill2}")
-def link_skills(skill1: str, skill2: str, repo: MatchRepository = Depends(get_match_repo)):
-    return repo.link_related_skills(skill1, skill2)
+def link_skills(skill1: str, skill2: str):
+    return store.add_skill_relationship(skill1, skill2)
 
-@router.post("/student/{username}")
-def add_student_skill(username: str, skill_name: str, level: int = 1, repo: MatchRepository = Depends(get_match_repo)):
-    return repo.add_student_skill(username, skill_name, level)
+@router.post("/student/{email}")
+def add_student_skill(email: str, skill_name: str, level: int = 1):
+    profile = store.get_profile(email)
+    skills = profile["skills"]
+    if skill_name not in skills:
+        skills.append(skill_name)
+        store.update_profile(email, profile["bio"], skills)
+    return {"message": "Skill added", "skills": skills}

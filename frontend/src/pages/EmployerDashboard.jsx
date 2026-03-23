@@ -105,7 +105,7 @@ export default function EmployerDashboard() {
             className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/20">
             <Plus className="w-4 h-4" /> Post Internship
           </button>
-          <button onClick={() => { logout(); navigate('/auth'); }}
+          <button onClick={() => { logout(); navigate('/'); }}
             className="flex items-center gap-2 text-slate-400 hover:text-rose-400 transition-colors px-4 py-2 rounded-xl border border-slate-700 hover:border-rose-400/40">
             <LogOut className="w-4 h-4" />
           </button>

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routes import auth, matching, skills, internships, graph
+from backend.routes import auth, matching, skills, internships
 from backend.store import init_db, get_all_users_safe, get_all_internships, get_all_applications, get_all_students_with_profiles
 
 app = FastAPI(title="InternConnect Graph API")
@@ -8,7 +8,7 @@ app = FastAPI(title="InternConnect Graph API")
 @app.on_event("startup")
 def startup():
     init_db()
-    print("✅ SQLite database initialised at data.db")
+    print("✅ MySQL database initialised via store.py")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,7 +22,6 @@ app.include_router(auth.router)
 app.include_router(matching.router)
 app.include_router(skills.router)
 app.include_router(internships.router)
-app.include_router(graph.router)
 
 @app.get("/")
 def read_root():

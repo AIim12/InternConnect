@@ -1,20 +1,30 @@
-from fastapi import APIRouter, Depends
-from backend.repositories.match_repo import MatchRepository
+from fastapi import APIRouter, HTTPException, Depends
+from backend import store
 from backend.models import InternshipCreate
+from pydantic import BaseModel
+
+class Requirement(BaseModel):
+    skill_name: str
+    level_required: int = 1
 
 router = APIRouter(prefix="/internships", tags=["internships"])
 
-def get_match_repo():
-    return MatchRepository()
-
 @router.post("/")
-def create_internship(internship: InternshipCreate, repo: MatchRepository = Depends(get_match_repo)):
-    return repo.create_internship(internship.title)
+def create_internship(internship: InternshipCreate):
+    # Fallback employer_email if none provided (demo purposes)
+    result = store.create_internship(
+        title=internship.title,
+        description=internship.description or "No description provided",
+        required_skills=[],
+        employer_email=internship.employer_email or "hr@techcorp.com"
+    )
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create internship")
+    return {"message": "Internship created", "internship": result}
 
-@router.post("/{title}/requirements")
-def add_requirement(title: str, skill_name: str, level_required: int = 1, repo: MatchRepository = Depends(get_match_repo)):
-    return repo.add_internship_requirement(title, skill_name, level_required)
-
-@router.post("/{title}/apply/{username}")
-def apply_to_internship(title: str, username: str, status: str = "Applied", repo: MatchRepository = Depends(get_match_repo)):
-    return repo.apply_to_internship(username, title, status)
+@router.post("/{internship_id}/apply/{student_email}")
+def apply_to_internship(internship_id: int, student_email: str):
+    res = store.apply_to_internship(internship_id, student_email)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return {"message": "Applied successfully"}

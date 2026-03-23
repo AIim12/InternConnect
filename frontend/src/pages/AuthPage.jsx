@@ -27,8 +27,9 @@ export default function AuthPage() {
       if (!res.ok) { setError(data.detail || 'Something went wrong'); setLoading(false); return; }
       login(data.access_token, { email: form.email, role: data.role });
       navigate(data.role === 'employer' ? '/employer' : '/student');
-    } catch {
-      setError('Could not reach the server. Make sure the backend is running.');
+    } catch (err) {
+      console.error("Login fetch error:", err);
+      setError(`Could not reach the server. Make sure the backend is running. (${err.message})`);
     }
     setLoading(false);
   };
