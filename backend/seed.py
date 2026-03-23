@@ -283,16 +283,16 @@ INTERNSHIPS = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 def seed():
-    init_db()
-
-    # Clear all tables
+    # Drop all tables to ensure schema changes (like new columns) take effect
     with _conn() as con:
-        con.execute("DELETE FROM applications")
-        con.execute("DELETE FROM internships")
-        con.execute("DELETE FROM student_profiles")
-        con.execute("DELETE FROM users")
-        con.execute("DELETE FROM notifications")
-        print("🗑️  Cleared existing data.")
+        con.execute("DROP TABLE IF EXISTS applications")
+        con.execute("DROP TABLE IF EXISTS internships")
+        con.execute("DROP TABLE IF EXISTS student_profiles")
+        con.execute("DROP TABLE IF EXISTS notifications")
+        con.execute("DROP TABLE IF EXISTS users")
+        print("🗑️  Dropped existing tables for clean schema.")
+
+    init_db()
 
     # Register employers
     for e in EMPLOYERS:

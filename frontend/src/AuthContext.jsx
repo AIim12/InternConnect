@@ -5,6 +5,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [loading, setLoading] = useState(!!localStorage.getItem('token'));
 
   useEffect(() => {
     if (token) {
@@ -12,8 +13,11 @@ export function AuthProvider({ children }) {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(r => r.ok ? r.json() : null)
-        .then(u => { if (u) setUser(u); else logout(); })
-        .catch(logout);
+        .then(u => {
+          if (u) setUser(u); else logout();
+        })
+        .catch(logout)
+        .finally(() => setLoading(false));
     }
   }, [token]);
 
@@ -40,7 +44,7 @@ export function AuthProvider({ children }) {
     });
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch }}>
       {children}
     </AuthContext.Provider>
   );

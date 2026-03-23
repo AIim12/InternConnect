@@ -34,7 +34,8 @@ function Navbar() {
 }
 
 function ProtectedRoute({ children, role }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/auth" />;
   if (role && user.role !== role) return <Navigate to={user.role === 'employer' ? '/employer' : '/student'} />;
   return children;
