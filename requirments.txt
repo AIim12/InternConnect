@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+email-validator
+bcrypt
+PyJWT
+falkordb
+python-multipart
+falkordb
+pydantic[email]==2.5.3
+python-dotenv==1.0.1
