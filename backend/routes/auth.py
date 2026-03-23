@@ -6,7 +6,8 @@ from backend.store import (
     update_profile, get_profile,
     create_internship, get_all_internships, get_employer_internships,
     apply_to_internship, get_applicants, update_application_status,
-    get_student_applications, compute_match, get_user
+    get_student_applications, compute_match, get_user,
+    get_notifications, mark_notifications_read
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -84,13 +85,18 @@ class InternshipInput(BaseModel):
     title: str
     description: str
     required_skills: list  # [{"name": str, "level": int}]
+    work_hours: Optional[str] = ""
+    work_mode: Optional[str] = ""
+    hourly_pay: Optional[str] = ""
+    payment_methods: Optional[str] = ""
+    location: Optional[str] = ""
 
 @router.post("/internships")
 def post_internship(req: InternshipInput, authorization: str = Header(...)):
     payload = get_current_user(authorization)
     if payload["role"] != "employer":
         raise HTTPException(status_code=403, detail="Only employers can post internships")
-    return create_internship(req.title, req.description, req.required_skills, payload["sub"])
+    return create_internship(req.title, req.description, req.required_skills, payload["sub"], req.work_hours, req.work_mode, req.hourly_pay, req.payment_methods, req.location)
 
 @router.get("/internships")
 def list_internships():
@@ -121,11 +127,11 @@ def applicants(internship_id: int, authorization: str = Header(...)):
     return get_applicants(internship_id)
 
 @router.patch("/internships/{internship_id}/applicants/{student_email}")
-def update_status(internship_id: int, student_email: str, status: str, authorization: str = Header(...)):
+def update_status(internship_id: int, student_email: str, status: str, e_signature: Optional[str] = "", authorization: str = Header(...)):
     payload = get_current_user(authorization)
     if payload["role"] != "employer":
         raise HTTPException(status_code=403, detail="Only employers can update status")
-    result = update_application_status(internship_id, student_email, status)
+    result = update_application_status(internship_id, student_email, status, e_signature)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
@@ -151,3 +157,16 @@ def match_me(internship_id: int, authorization: str = Header(...)):
     if not intern:
         raise HTTPException(status_code=404, detail="Internship not found")
     return compute_match(profile.get("skills", []), intern.get("required_skills", []))
+
+# ─── Notifications ────────────────────────────────────────────────────────────
+
+@router.get("/notifications")
+def fetch_notifications(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    return get_notifications(payload["sub"])
+
+@router.post("/notifications/read")
+def read_notifications(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    mark_notifications_read(payload["sub"])
+    return {"ok": True}

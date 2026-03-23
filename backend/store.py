@@ -46,6 +46,11 @@ def init_db():
             title            TEXT NOT NULL,
             description      TEXT,
             required_skills  TEXT DEFAULT '[]',  -- JSON [{name, level}]
+            work_hours       TEXT DEFAULT '',
+            work_mode        TEXT DEFAULT '',
+            hourly_pay       TEXT DEFAULT '',
+            payment_methods  TEXT DEFAULT '',
+            location         TEXT DEFAULT '',
             employer_email   TEXT REFERENCES users(email),
             created_at       TEXT DEFAULT (datetime('now'))
         );
@@ -56,6 +61,14 @@ def init_db():
             student_email   TEXT REFERENCES users(email),
             status          TEXT DEFAULT 'Applied',
             UNIQUE(internship_id, student_email)
+        );
+
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email TEXT REFERENCES users(email),
+            message TEXT,
+            is_read INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
         );
         """)
 
@@ -127,11 +140,11 @@ def get_profile(email: str) -> dict:
 
 # ─── Internship operations ────────────────────────────────────────────────────
 
-def create_internship(title: str, description: str, required_skills: list, employer_email: str) -> dict:
+def create_internship(title: str, description: str, required_skills: list, employer_email: str, work_hours: str = "", work_mode: str = "", hourly_pay: str = "", payment_methods: str = "", location: str = "") -> dict:
     with _conn() as con:
         cur = con.execute(
-            "INSERT INTO internships (title, description, required_skills, employer_email) VALUES (?,?,?,?)",
-            (title, description, json.dumps(required_skills), employer_email)
+            "INSERT INTO internships (title, description, required_skills, employer_email, work_hours, work_mode, hourly_pay, payment_methods, location) VALUES (?,?,?,?,?,?,?,?,?)",
+            (title, description, json.dumps(required_skills), employer_email, work_hours, work_mode, hourly_pay, payment_methods, location)
         )
         row = con.execute("SELECT * FROM internships WHERE id=?", (cur.lastrowid,)).fetchone()
     return _parse_internship(row) if row else None
@@ -193,12 +206,20 @@ def get_applicants(internship_id: int) -> list:
         })
     return result
 
-def update_application_status(internship_id: int, student_email: str, status: str) -> dict:
+def update_application_status(internship_id: int, student_email: str, status: str, e_signature: str = "") -> dict:
     with _conn() as con:
         rows_changed = con.execute(
             "UPDATE applications SET status=? WHERE internship_id=? AND student_email=?",
             (status, internship_id, student_email)
         ).rowcount
+        if rows_changed and status == 'Offered':
+            job = con.execute("SELECT title, employer_email FROM internships WHERE id=?", (internship_id,)).fetchone()
+            if job:
+                msg = f"🎉 Congratulations! You have been approved and offered the '{job['title']}' internship by {job['employer_email']}."
+                if e_signature:
+                    msg += f"\n\n🖋️ Official E-Signature: {e_signature}"
+                con.execute("INSERT INTO notifications (user_email, message) VALUES (?, ?)", (student_email, msg))
+                
     return {"ok": True} if rows_changed else {"error": "Application not found"}
 
 def get_student_applications(student_email: str) -> list:
@@ -215,6 +236,18 @@ def get_student_applications(student_email: str) -> list:
         d["required_skills"] = json.loads(d["required_skills"] or "[]")
         result.append(d)
     return result
+
+# ─── Notifications ────────────────────────────────────────────────────────────
+
+def get_notifications(email: str) -> list:
+    with _conn() as con:
+        rows = con.execute("SELECT * FROM notifications WHERE user_email=? ORDER BY id DESC", (email,)).fetchall()
+    return [dict(r) for r in rows]
+
+def mark_notifications_read(email: str):
+    with _conn() as con:
+        con.execute("UPDATE notifications SET is_read=1 WHERE user_email=?", (email,))
+
 
 # ─── Smart Match ──────────────────────────────────────────────────────────────
 

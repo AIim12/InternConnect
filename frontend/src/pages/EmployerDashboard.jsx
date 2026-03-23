@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const KNOWN_SKILLS = ['Python', 'FastAPI', 'React', 'Tailwind', 'DataScience', 'AWS', 'Docker', 'TypeScript', 'SQL', 'Node.js', 'Linux', 'Git', 'JavaScript', 'PostgreSQL'];
+const TURKEY_CITIES = ['Istanbul', 'Ankara', 'Izmir', 'Bursa', 'Antalya', 'Adana', 'Gaziantep', 'Konya'];
 
 const STATUS_OPTS = ['Applied', 'Interviewing', 'Offered', 'Rejected'];
 const STATUS_COLOR = {
@@ -23,7 +24,7 @@ export default function EmployerDashboard() {
   const [expanded, setExpanded] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', required_skills: [] });
+  const [form, setForm] = useState({ title: '', description: '', required_skills: [], work_hours: '', work_mode: '', hourly_pay: '', payment_methods: [], location: '' });
   const [skillInput, setSkillInput] = useState('');
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
@@ -43,7 +44,12 @@ export default function EmployerDashboard() {
   };
 
   const updateStatus = async (internshipId, studentEmail, status) => {
-    await authFetch(`http://127.0.0.1:8000/auth/internships/${internshipId}/applicants/${encodeURIComponent(studentEmail)}?status=${status}`, { method: 'PATCH' });
+    let signature = "";
+    if (status === 'Offered') {
+      signature = window.prompt("Please enter your E-Signature for the official offer letter:");
+      if (signature === null) return; // User cancelled
+    }
+    await authFetch(`http://127.0.0.1:8000/auth/internships/${internshipId}/applicants/${encodeURIComponent(studentEmail)}?status=${status}&e_signature=${encodeURIComponent(signature)}`, { method: 'PATCH' });
     setApplicants(prev => ({
       ...prev,
       [internshipId]: prev[internshipId].map(a => a.email === studentEmail ? { ...a, status } : a),
@@ -62,14 +68,15 @@ export default function EmployerDashboard() {
 
   const postInternship = async (e) => {
     e.preventDefault();
+    const payload = { ...form, payment_methods: form.payment_methods.join(', ') };
     const res = await authFetch('http://127.0.0.1:8000/auth/internships', {
-      method: 'POST', body: JSON.stringify(form),
+      method: 'POST', body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (data.id) {
       showToast('Internship posted!');
       setShowForm(false);
-      setForm({ title: '', description: '', required_skills: [] });
+      setForm({ title: '', description: '', required_skills: [], work_hours: '', work_mode: '', hourly_pay: '', payment_methods: [], location: '' });
       loadInternships();
     } else {
       showToast(data.detail || 'Error posting');
@@ -124,9 +131,48 @@ export default function EmployerDashboard() {
               placeholder="Describe the role, team, and what the intern will work on..."
               className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600" />
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <select value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
+              className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 text-sm appearance-none">
+              <option value="">📍 Select City</option>
+              {TURKEY_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input value={form.work_mode} onChange={e => setForm({ ...form, work_mode: e.target.value })}
+              placeholder="Mode (e.g. Remote, On-site)"
+              className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600 text-sm" />
+            <input value={form.work_hours} onChange={e => setForm({ ...form, work_hours: e.target.value })}
+              placeholder="Hours (e.g. 20 hrs/week)"
+              className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600 text-sm" />
+            <input value={form.hourly_pay} onChange={e => setForm({ ...form, hourly_pay: e.target.value })}
+              placeholder="Pay (e.g. $15/hr or Unpaid)"
+              className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600 text-sm" />
+          </div>
+
+          <div className="flex flex-col gap-2 mb-2 mt-2">
+            <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Payment Methods</label>
+            <div className="flex flex-wrap gap-5">
+              {['PayPal', 'Credit Card', 'Western Union'].map(pm => (
+                <label key={pm} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <input type="checkbox"
+                    checked={form.payment_methods.includes(pm)}
+                    onChange={(e) => {
+                      if (e.target.checked) setForm({ ...form, payment_methods: [...form.payment_methods, pm] });
+                      else setForm({ ...form, payment_methods: form.payment_methods.filter(p => p !== pm) });
+                    }}
+                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                  /> {pm}
+                </label>
+              ))}
+            </div>
+          </div>
+
             {/* Skills picker */}
             <div>
               <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2 block">Required Skills</label>
+            <div className="flex gap-2 mb-3">
+              <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSkill(skillInput))} placeholder="Type a custom skill and press Enter..." className="flex-1 bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-sm text-slate-100" />
+              <button type="button" onClick={() => addSkill(skillInput)} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors text-white">Add</button>
+            </div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {KNOWN_SKILLS.map(sk => (
                   <button type="button" key={sk}
@@ -191,6 +237,13 @@ export default function EmployerDashboard() {
                     </span>
                   </div>
                   <p className="text-slate-400 text-sm mt-1 line-clamp-1">{job.description}</p>
+                  <div className="flex flex-wrap gap-3 mt-3 text-xs font-medium text-slate-400">
+                    {job.location && <span className="bg-slate-900 px-2 py-1 rounded-md border border-slate-700">🇹🇷 {job.location}</span>}
+                    {job.work_mode && <span className="bg-slate-900 px-2 py-1 rounded-md border border-slate-700">📍 {job.work_mode}</span>}
+                    {job.work_hours && <span className="bg-slate-900 px-2 py-1 rounded-md border border-slate-700">⏱️ {job.work_hours}</span>}
+                    {job.hourly_pay && <span className="bg-slate-900 px-2 py-1 rounded-md border border-slate-700">💰 {job.hourly_pay}</span>}
+                    {job.payment_methods && <span className="bg-slate-900 px-2 py-1 rounded-md border border-slate-700">💳 {job.payment_methods}</span>}
+                  </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {(job.required_skills || []).map(s => (
                       <span key={s.name} className="px-2 py-0.5 bg-slate-700 text-slate-300 text-xs rounded-md">{s.name}</span>

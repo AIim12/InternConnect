@@ -291,6 +291,7 @@ def seed():
         con.execute("DELETE FROM internships")
         con.execute("DELETE FROM student_profiles")
         con.execute("DELETE FROM users")
+        con.execute("DELETE FROM notifications")
         print("🗑️  Cleared existing data.")
 
     # Register employers
