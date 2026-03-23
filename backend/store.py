@@ -38,7 +38,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS student_profiles (
             email  TEXT PRIMARY KEY REFERENCES users(email),
             bio    TEXT DEFAULT '',
-            skills TEXT DEFAULT '[]'   -- JSON list of skill-name strings
+            skills TEXT DEFAULT '[]',  -- JSON list of skill-name strings
+            major  TEXT DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS internships (
@@ -122,21 +123,21 @@ def get_user(email: str):
 
 # ─── Student profile ──────────────────────────────────────────────────────────
 
-def update_profile(email: str, bio: str, skills: list) -> dict:
+def update_profile(email: str, bio: str, skills: list, major: str = "") -> dict:
     with _conn() as con:
         con.execute(
-            "INSERT INTO student_profiles (email, bio, skills) VALUES (?,?,?) "
-            "ON CONFLICT(email) DO UPDATE SET bio=excluded.bio, skills=excluded.skills",
-            (email, bio, json.dumps(skills))
+            "INSERT INTO student_profiles (email, bio, skills, major) VALUES (?,?,?,?) "
+            "ON CONFLICT(email) DO UPDATE SET bio=excluded.bio, skills=excluded.skills, major=excluded.major",
+            (email, bio, json.dumps(skills), major)
         )
-    return {"bio": bio, "skills": skills}
+    return {"bio": bio, "skills": skills, "major": major}
 
 def get_profile(email: str) -> dict:
     with _conn() as con:
         row = con.execute("SELECT * FROM student_profiles WHERE email=?", (email,)).fetchone()
     if not row:
-        return {"bio": "", "skills": []}
-    return {"bio": row["bio"] or "", "skills": json.loads(row["skills"] or "[]")}
+        return {"bio": "", "skills": [], "major": ""}
+    return {"bio": row["bio"] or "", "skills": json.loads(row["skills"] or "[]"), "major": row["major"] or ""}
 
 # ─── Internship operations ────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ def get_applicants(internship_id: int) -> list:
     with _conn() as con:
         rows = con.execute("""
             SELECT a.student_email AS email, a.status,
-                   u.full_name, p.bio, p.skills
+                   u.full_name, p.bio, p.skills, p.major
             FROM applications a
             JOIN users u ON u.email = a.student_email
             LEFT JOIN student_profiles p ON p.email = a.student_email
@@ -203,6 +204,7 @@ def get_applicants(internship_id: int) -> list:
             "status": r["status"],
             "bio": r["bio"] or "",
             "skills": json.loads(r["skills"] or "[]"),
+            "major": r["major"] or "",
         })
     return result
 
@@ -283,7 +285,7 @@ def get_all_applications() -> list:
 def get_all_students_with_profiles() -> list:
     with _conn() as con:
         rows = con.execute("""
-            SELECT u.email, u.full_name, p.bio, p.skills
+            SELECT u.email, u.full_name, p.bio, p.skills, p.major
             FROM users u
             LEFT JOIN student_profiles p ON p.email = u.email
             WHERE u.role = 'student'
@@ -295,5 +297,6 @@ def get_all_students_with_profiles() -> list:
             "full_name": r["full_name"],
             "bio": r["bio"] or "",
             "skills": json.loads(r["skills"] or "[]"),
+            "major": r["major"] or "",
         })
     return result

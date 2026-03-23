@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 const TURKEY_CITIES = ['Istanbul', 'Ankara', 'Izmir', 'Bursa', 'Antalya', 'Adana', 'Gaziantep', 'Konya'];
 const KNOWN_SKILLS = ['Python', 'FastAPI', 'React', 'Tailwind', 'DataScience', 'AWS', 'Docker', 'TypeScript', 'SQL', 'Node.js', 'Linux', 'Git', 'JavaScript', 'PostgreSQL'];
+const MAJORS = ['Information Technology', 'Business & Finance', 'Marketing & Communications', 'Healthcare & Sciences', 'Engineering', 'Law & Social Sciences', 'Creative Arts', 'Other'];
 
 const STATUS_COLOR = {
   Applied: 'text-sky-400 bg-sky-400/10 border-sky-400/30',
@@ -37,11 +38,12 @@ export default function StudentDashboard() {
   const [filterLocation, setFilterLocation] = useState('all');
   const [filterMode, setFilterMode] = useState('all');
   const [filterPay, setFilterPay] = useState('all');
-  const [profile, setProfile] = useState({ bio: '', skills: [] });
+  const [profile, setProfile] = useState({ bio: '', skills: [], major: '' });
   const [internships, setInternships] = useState([]);
   const [applications, setApplications] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [skillInput, setSkillInput] = useState('');
   const [applyingId, setApplyingId] = useState(null);
   const [toast, setToast] = useState('');
 
@@ -98,6 +100,9 @@ export default function StudentDashboard() {
   const appliedIds = new Set(applications.map(a => a.id));
 
   const kanbanCols = ['Applied', 'Interviewing', 'Offered', 'Rejected'];
+  
+  // Merge default skills with user's custom skills to show them as buttons
+  const allDisplayedSkills = Array.from(new Set([...KNOWN_SKILLS, ...profile.skills]));
 
   // Process, filter, and sort jobs before rendering
   const filteredJobs = internships.filter(job => {
@@ -339,9 +344,27 @@ export default function StudentDashboard() {
               </div>
 
               <div>
+                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1 block">Major / Specialization</label>
+                <select
+                  value={profile.major}
+                  onChange={e => setProfile({ ...profile, major: e.target.value })}
+                  className="w-full bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100"
+                >
+                  <option value="">🎓 Select your major...</option>
+                  {MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-3 block">Your Skills <span className="text-indigo-400">(click to toggle)</span></label>
+                
+                <div className="flex gap-2 mb-3">
+                  <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (skillInput) toggleSkill(skillInput); setSkillInput(''); } }} placeholder="Type any custom skill (e.g. C++, Figma) and press Enter..." className="flex-1 bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm text-slate-100" />
+                  <button type="button" onClick={() => { if (skillInput) toggleSkill(skillInput); setSkillInput(''); }} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors text-white">Add</button>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
-                  {KNOWN_SKILLS.map(skill => (
+                  {allDisplayedSkills.map(skill => (
                     <button key={skill} type="button" onClick={() => toggleSkill(skill)}
                       className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
                         profile.skills.includes(skill)

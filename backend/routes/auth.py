@@ -27,6 +27,7 @@ class LoginRequest(BaseModel):
 class ProfileUpdate(BaseModel):
     bio: Optional[str] = ""
     skills: Optional[list] = []  # list of skill name strings
+    major: Optional[str] = ""
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ def me(authorization: str = Header(...)):
 @router.put("/profile")
 def set_profile(req: ProfileUpdate, authorization: str = Header(...)):
     payload = get_current_user(authorization)
-    result = update_profile(payload["sub"], req.bio, req.skills)
+    result = update_profile(payload["sub"], req.bio, req.skills, req.major)
     return result
 
 @router.get("/profile")
