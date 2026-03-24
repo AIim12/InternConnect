@@ -94,3 +94,10 @@ This project satisfies the criteria for **SWE 4504** (Design Project - I):
 2. Advanced Databases: Dual-database implementation using MySQL and FalkorDB.
 3. User Experience: Focuses on accessibility and intuitive navigation for non-technical users.
 4. Problem Solving: Addresses the specific problem of inefficient internship placement workflows.
+
+## Contributors
+
+| Name | Role | Responsibilities |
+|---|---|---|
+| Izzettin, Zouhir & Mohamed | Development Team | Full-Stack Architecture, FastAPI Backend, and React Frontend development. |
+| Mustafa & Abdulaziz | Planning & Presentation | SDLC, Database Planning, QA Testing, and Final Presentation. |
