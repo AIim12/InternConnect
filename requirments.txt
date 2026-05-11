@@ -6,6 +6,10 @@ bcrypt
 PyJWT
 falkordb
 python-multipart
-falkordb
 pydantic[email]==2.5.3
 python-dotenv==1.0.1
+pyotp
+qrcode
+pytest
+pytest-cov
+httpx

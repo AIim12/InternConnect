@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
-from backend.main import app
-from backend.store import init_db, _conn
-from backend.seed import seed
+from main import app
+from store import init_db, _conn
+from seed import seed
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -30,7 +30,7 @@ def mock_falkordb_driver():
         mock_client.select_graph.return_value = mock_graph
         mock_falkordb_class.return_value = mock_client
         
-        from backend.database import GraphDatabase
+        from database import GraphDatabase
         GraphDatabase._instance = None
         yield
 
@@ -161,9 +161,9 @@ def test_graph_endpoints():
 
 def test_graph_offline_coverage():
     # Test FalkorDB failure fallback
-    from backend.database import GraphDatabase
+    from database import GraphDatabase
     GraphDatabase._instance = None
-    with patch("backend.database.FalkorDB", side_effect=Exception("DB Offline")):
+    with patch("database.FalkorDB", side_effect=Exception("DB Offline")):
         res = client.get("/graph/export")
         assert res.status_code == 200
         assert len(res.json()["nodes"]) > 0

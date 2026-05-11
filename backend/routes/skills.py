@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from backend.repositories.match_repo import MatchRepository
-from backend.models import Skill
+from repositories.match_repo import MatchRepository
+from models import Skill
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 

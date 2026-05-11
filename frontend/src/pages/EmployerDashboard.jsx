@@ -15,7 +15,7 @@ const STATUS_COLOR = {
 };
 
 export default function EmployerDashboard() {
-  const { user, authFetch, logout } = useAuth();
+  const { user, authFetch, logout, refetchUser } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('manage');
@@ -27,6 +27,11 @@ export default function EmployerDashboard() {
   const [form, setForm] = useState({ title: '', description: '', required_skills: [], work_hours: '', work_mode: '', hourly_pay: '', payment_methods: [], location: '' });
   const [skillInput, setSkillInput] = useState('');
 
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [changePasswordForm, setChangePasswordForm] = useState({ newPassword: '', otpCode: '' });
+  const [changePwdError, setChangePwdError] = useState('');
+  const [changePwdLoading, setChangePwdLoading] = useState(false);
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
   const loadInternships = () =>
@@ -34,6 +39,47 @@ export default function EmployerDashboard() {
       .then(r => r.json()).then(data => { if (!data.detail) setInternships(data); });
 
   useEffect(() => { loadInternships(); }, []);
+
+  const loadChangePasswordQR = async () => {
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/auth/2fa/qr');
+      if (res.ok) {
+        const blob = await res.blob();
+        setQrCodeUrl(URL.createObjectURL(blob));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'settings') {
+      loadChangePasswordQR();
+    }
+  }, [tab]);
+
+  const submitChangePassword = async (e) => {
+    e.preventDefault();
+    setChangePwdError('');
+    setChangePwdLoading(true);
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ new_password: changePasswordForm.newPassword, otp_code: changePasswordForm.otpCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Password changed successfully!');
+        setChangePasswordForm({ newPassword: '', otpCode: '' });
+        if (refetchUser) refetchUser();
+      } else {
+        setChangePwdError(data.detail || 'Failed to change password.');
+      }
+    } catch (err) {
+      setChangePwdError('Could not reach the server.');
+    }
+    setChangePwdLoading(false);
+  };
 
   const loadApplicants = async (id) => {
     if (applicants[id]) { setExpanded(expanded === id ? null : id); return; }
@@ -55,6 +101,17 @@ export default function EmployerDashboard() {
       [internshipId]: prev[internshipId].map(a => a.email === studentEmail ? { ...a, status } : a),
     }));
     showToast(`Status updated: ${status}`);
+  };
+
+  const removeInternship = async (id) => {
+    if (!window.confirm("Are you sure you want to permanently delete this internship?")) return;
+    const res = await authFetch(`http://127.0.0.1:8000/auth/internships/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast("Internship removed");
+      loadInternships();
+    } else {
+      showToast("Failed to remove internship");
+    }
   };
 
   const addSkill = (name) => {
@@ -108,6 +165,10 @@ export default function EmployerDashboard() {
           <p className="text-slate-400 mt-1">Signed in as <span className="text-slate-200 font-semibold">{user?.email}</span></p>
         </div>
         <div className="flex gap-3">
+          <button onClick={() => setTab(tab === 'manage' ? 'settings' : 'manage')}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold transition-colors">
+            {tab === 'manage' ? '⚙️ Settings' : '📋 Manage'}
+          </button>
           <button onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-500/20">
             <Plus className="w-4 h-4" /> Post Internship
@@ -119,8 +180,40 @@ export default function EmployerDashboard() {
         </div>
       </header>
 
+      {tab === 'settings' && (
+        <div className="max-w-2xl bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-sm mb-8">
+          <h2 className="text-xl font-bold mb-5 flex items-center gap-2">🛡️ Change Password with 2FA</h2>
+          <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="flex-1">
+              <p className="text-sm text-slate-400 mb-4">Scan the QR code to set up your 2FA (if not done yet), then enter your new password and the 6-digit OTP code.</p>
+              <form onSubmit={submitChangePassword} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Password</label>
+                  <input type="password" value={changePasswordForm.newPassword} onChange={e => setChangePasswordForm({ ...changePasswordForm, newPassword: e.target.value })} required
+                    placeholder="••••••••"
+                    className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">2FA Code</label>
+                  <input value={changePasswordForm.otpCode} onChange={e => setChangePasswordForm({ ...changePasswordForm, otpCode: e.target.value })} required
+                    placeholder="123456" maxLength={6}
+                    className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600" />
+                </div>
+                {changePwdError && <div className="text-rose-400 text-sm">{changePwdError}</div>}
+                <button type="submit" disabled={changePwdLoading} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60">
+                  {changePwdLoading ? 'Updating...' : 'Change Password'}
+                </button>
+              </form>
+            </div>
+            <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl border border-slate-600 w-48 h-48">
+              {qrCodeUrl ? <img src={qrCodeUrl} alt="2FA QR Code" className="w-full h-full object-contain" /> : <p className="text-slate-500 text-sm">Loading QR...</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Post Internship Form */}
-      {showForm && (
+      {tab === 'manage' && showForm && (
         <div className="mb-8 bg-slate-800/60 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-sm">
           <h2 className="text-lg font-bold text-slate-100 mb-5">📋 New Internship Posting</h2>
           <form onSubmit={postInternship} className="flex flex-col gap-4">
@@ -215,6 +308,7 @@ export default function EmployerDashboard() {
       )}
 
       {/* Listed Internships */}
+      {tab === 'manage' && (
       <div className="space-y-4">
         {internships.length === 0 && (
           <div className="text-center py-20 text-slate-500 border border-dashed border-slate-700 rounded-2xl">
@@ -250,7 +344,10 @@ export default function EmployerDashboard() {
                     ))}
                   </div>
                 </div>
-                <div className="text-slate-500 ml-4">
+                <div className="flex items-center gap-4 text-slate-500 ml-4">
+                  <button onClick={(e) => { e.stopPropagation(); removeInternship(job.id); }} className="hover:text-rose-400 transition-colors p-2 hover:bg-rose-500/10 rounded-lg">
+                    🗑️
+                  </button>
                   {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                 </div>
               </div>
@@ -313,6 +410,7 @@ export default function EmployerDashboard() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

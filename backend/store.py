@@ -3,15 +3,20 @@ SQLite-backed persistent store.
 Data file: InternConnectGraph/data.db
 Zero extra dependencies — sqlite3 is built into Python.
 """
+import os
 import sqlite3
 import bcrypt as _bcrypt
 import jwt
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from dotenv import load_dotenv
 
-SECRET_KEY = "supersecretkey_internconnect_2026"
-ALGORITHM = "HS256"
+# Load environment variables from backend/.env when store is imported
+load_dotenv(dotenv_path=Path(__file__).parent / '.env')
+
+SECRET_KEY = os.getenv("JWT_SECRET", "supersecretkey_internconnect_2026")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 DB_PATH = Path(__file__).parent.parent / "data.db"
 
@@ -123,6 +128,11 @@ def get_user(email: str):
         row = con.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     return dict(row) if row else None
 
+def change_password(email: str, new_password: str) -> dict:
+    with _conn() as con:
+        con.execute("UPDATE users SET password=? WHERE email=?", (hash_password(new_password), email))
+    return {"ok": True}
+
 # ─── Admin operations ─────────────────────────────────────────────────────────
 
 def update_user_role(email: str, new_role: str) -> dict:
@@ -196,6 +206,12 @@ def _parse_internship(row) -> dict:
     d = dict(row)
     d["required_skills"] = json.loads(d["required_skills"] or "[]")
     return d
+
+def delete_internship(internship_id: int, employer_email: str) -> bool:
+    with _conn() as con:
+        con.execute("DELETE FROM applications WHERE internship_id=?", (internship_id,))
+        res = con.execute("DELETE FROM internships WHERE id=? AND employer_email=?", (internship_id, employer_email))
+        return res.rowcount > 0
 
 # ─── Application operations ───────────────────────────────────────────────────
 

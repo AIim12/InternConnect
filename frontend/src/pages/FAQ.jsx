@@ -13,6 +13,28 @@ export default function FAQ() {
               <h3 className="text-lg font-bold text-indigo-400 mb-2">How does the matching percentage work?</h3>
               <p>Our matching engine doesn't just do keyword matching. We use FalkorDB Graph Theory to analyze paths. If a job requires "Next.js" and you only have "React", the engine knows they are 1 edge away (`RELATED_TO`), granting you a partial match rather than 0%.</p>
             </div>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-indigo-400 mb-2">Is Two-Factor Authentication required?</h3>
+              <p>Yes. To protect user data, we highly encourage 2FA during registration and password changes. You can set it up seamlessly using any authenticator app (like Google Authenticator or Authy) on your phone.</p>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-indigo-400 mb-2">Can I apply to multiple internships at once?</h3>
+              <p>Yes! There is no hard limit to the number of active applications you can have. You can track all of your current applications in the Kanban board on your dashboard.</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-2">For Employers</h2>
+          <div className="space-y-6">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-emerald-400 mb-2">Can I require custom skills for my internship?</h3>
+              <p>Absolutely. While we provide a comprehensive list of known skills in our graph, you can freely type and add custom skills. Our semantic engine will periodically index new custom skills into the main graph.</p>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-emerald-400 mb-2">How do E-Signatures work for offer letters?</h3>
+              <p>When you change an applicant's status to "Offered," you will be prompted to provide an e-signature. This signature is attached to the notification sent to the student, serving as an official confirmation of the internship offer.</p>
+            </div>
           </div>
         </section>
 
@@ -27,27 +49,6 @@ export default function FAQ() {
               By using FalkorDB, relationships are treated as first-class citizens. Traversal across paths (Student -&gt; HAS_SKILL -&gt; RELATED_TO -&gt; REQUIRES_SKILL -&gt; Internship) is executed in <strong>O(1)</strong> time per edge, drastically reducing latency for real-time heatmap generation and skill-gap analysis.
             </p>
           </div>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-2">Contact Us</h2>
-          <form className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8 flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-400">Reason for Contact</label>
-              <select className="bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-indigo-500">
-                <option>Technical Support</option>
-                <option>Partnership</option>
-                <option>Data Privacy</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-400">Message</label>
-              <textarea rows="4" className="bg-slate-900 border border-slate-700 rounded-lg p-3 outline-none focus:border-indigo-500" placeholder="Your message here..."></textarea>
-            </div>
-            <button type="button" className="bg-gradient-to-r from-indigo-500 to-cyan-500 text-white font-bold py-3 rounded-lg hover:opacity-90 transition-opacity">
-              Send Message
-            </button>
-          </form>
         </section>
       </div>
     </div>

@@ -1,4 +1,4 @@
-from backend.database import get_db
+from database import get_db
 
 class MatchRepository:
     def __init__(self):

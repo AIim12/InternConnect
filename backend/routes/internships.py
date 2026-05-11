@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from backend.repositories.match_repo import MatchRepository
-from backend.models import InternshipCreate
+from repositories.match_repo import MatchRepository
+from models import InternshipCreate
 
 router = APIRouter(prefix="/internships", tags=["internships"])
 

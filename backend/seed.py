@@ -6,7 +6,7 @@ Safe to re-run: clears all data first, then reseeds.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from backend.store import (
+from store import (
     init_db, _conn, register_user, update_profile,
     create_internship, apply_to_internship, update_application_status
 )

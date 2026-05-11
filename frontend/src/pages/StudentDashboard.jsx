@@ -50,6 +50,9 @@ export default function StudentDashboard() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [setupError, setSetupError] = useState('');
+  const [changePasswordForm, setChangePasswordForm] = useState({ newPassword: '', otpCode: '' });
+  const [changePwdError, setChangePwdError] = useState('');
+  const [changePwdLoading, setChangePwdLoading] = useState(false);
 
   useEffect(() => {
     authFetch('http://127.0.0.1:8000/auth/profile').then(r => r.json()).then(setProfile);
@@ -128,6 +131,47 @@ export default function StudentDashboard() {
       showToast('2FA disabled successfully.');
       refetchUser();
     } else { showToast('Failed to disable 2FA.'); }
+  };
+
+  const loadChangePasswordQR = async () => {
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/auth/2fa/qr');
+      if (res.ok) {
+        const blob = await res.blob();
+        setQrCodeUrl(URL.createObjectURL(blob));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'profile') {
+      loadChangePasswordQR();
+    }
+  }, [tab]);
+
+  const submitChangePassword = async (e) => {
+    e.preventDefault();
+    setChangePwdError('');
+    setChangePwdLoading(true);
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ new_password: changePasswordForm.newPassword, otp_code: changePasswordForm.otpCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Password changed successfully!');
+        setChangePasswordForm({ newPassword: '', otpCode: '' });
+        refetchUser(); // update otp_enabled status if it was changed
+      } else {
+        setChangePwdError(data.detail || 'Failed to change password.');
+      }
+    } catch (err) {
+      setChangePwdError('Could not reach the server.');
+    }
+    setChangePwdLoading(false);
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
@@ -474,6 +518,37 @@ export default function StudentDashboard() {
                 className="bg-gradient-to-r from-indigo-500 to-cyan-500 text-white font-bold py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60">
                 {saving ? 'Saving...' : 'Save Profile'}
               </button>
+            </div>
+          </div>
+
+          {/* Change Password UI */}
+          <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-sm">
+            <h2 className="text-xl font-bold mb-5 flex items-center gap-2"><Shield className="w-5 h-5 text-rose-400" /> Change Password with 2FA</h2>
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+              <div className="flex-1">
+                <p className="text-sm text-slate-400 mb-4">To change your password, scan the QR code to set up (or update) your 2FA, then enter a new password and the 6-digit OTP code.</p>
+                <form onSubmit={submitChangePassword} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Password</label>
+                    <input type="password" value={changePasswordForm.newPassword} onChange={e => setChangePasswordForm({ ...changePasswordForm, newPassword: e.target.value })} required
+                      placeholder="••••••••"
+                      className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100 placeholder:text-slate-600" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">2FA Code</label>
+                    <input value={changePasswordForm.otpCode} onChange={e => setChangePasswordForm({ ...changePasswordForm, otpCode: e.target.value })} required
+                      placeholder="123456" maxLength={6}
+                      className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100 placeholder:text-slate-600" />
+                  </div>
+                  {changePwdError && <div className="text-rose-400 text-sm">{changePwdError}</div>}
+                  <button type="submit" disabled={changePwdLoading} className="bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-60">
+                    {changePwdLoading ? 'Updating...' : 'Change Password'}
+                  </button>
+                </form>
+              </div>
+              <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl border border-slate-600 w-48 h-48">
+                {qrCodeUrl ? <img src={qrCodeUrl} alt="2FA QR Code" className="w-full h-full object-contain" /> : <p className="text-slate-500 text-sm">Loading QR...</p>}
+              </div>
             </div>
           </div>
 

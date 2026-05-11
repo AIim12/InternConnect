@@ -11,9 +11,16 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [show2FA, setShow2FA] = useState(false);
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [tempAuth, setTempAuth] = useState(null);
   const [otpCode, setOtpCode] = useState('');
   const [socialPrompt, setSocialPrompt] = useState(null); // 'Google', 'GitHub', etc.
   const [socialEmail, setSocialEmail] = useState('');
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState(1); // 1 = email, 2 = QR & verify
 
   useEffect(() => {
     // If user is already logged in, redirect them away from the auth page.
@@ -43,6 +50,28 @@ export default function AuthPage() {
       // If 2FA is required, show the OTP form instead of logging in directly
       if (data['2fa_required']) {
         setShow2FA(true);
+        setLoading(false);
+        return;
+      }
+
+      if (mode === 'register') {
+        setTempAuth({ token: data.access_token, user: { email: form.email, role: data.role } });
+        try {
+          const qrRes = await fetch('http://127.0.0.1:8000/auth/2fa/qr', {
+            headers: { 'Authorization': `Bearer ${data.access_token}` }
+          });
+          if (qrRes.ok) {
+            const blob = await qrRes.blob();
+            setQrCodeUrl(URL.createObjectURL(blob));
+            setShow2FASetup(true);
+          } else {
+            login(data.access_token, { email: form.email, role: data.role });
+            navigate(data.role === 'admin' ? '/admin' : data.role === 'employer' ? '/employer' : '/student');
+          }
+        } catch (err) {
+          login(data.access_token, { email: form.email, role: data.role });
+          navigate(data.role === 'admin' ? '/admin' : data.role === 'employer' ? '/employer' : '/student');
+        }
         setLoading(false);
         return;
       }
@@ -121,9 +150,112 @@ export default function AuthPage() {
     setLoading(false);
   };
 
+  const submit2FASetup = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/auth/2fa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tempAuth.token}` },
+        body: JSON.stringify({ otp_code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || 'Something went wrong'); setLoading(false); return; }
+
+      login(tempAuth.token, tempAuth.user);
+      if (tempAuth.user.role === 'admin') navigate('/admin');
+      else if (tempAuth.user.role === 'employer') navigate('/employer');
+      else navigate('/student');
+
+    } catch {
+      setError('Could not reach the server.');
+    }
+    setLoading(false);
+  };
+
+  const submitForgotQR = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/auth/forgot-password/qr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        setQrCodeUrl(URL.createObjectURL(blob));
+        setForgotStep(2);
+      } else {
+        const data = await res.json();
+        setError(data.detail || 'Email not found.');
+      }
+    } catch {
+      setError('Could not reach server.');
+    }
+    setLoading(false);
+  };
+
+  const submitForgotReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, new_password: forgotNewPassword, otp_code: otpCode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMode('login');
+        setForgotStep(1);
+        setOtpCode('');
+        setForgotNewPassword('');
+        setForgotEmail('');
+        alert('Password reset successful! Please log in.');
+      } else {
+        setError(data.detail || 'Invalid 2FA or error resetting.');
+      }
+    } catch {
+      setError('Could not reach server.');
+    }
+    setLoading(false);
+  };
+
   // Don't render the form if we are about to redirect
   if (user) {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Redirecting...</div>;
+  }
+
+  if (show2FASetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 relative">
+        <div className="absolute w-96 h-96 bg-emerald-500/20 rounded-full blur-[120px] top-16 left-16 pointer-events-none" />
+        <div className="relative w-full max-w-md mx-4 bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-10 shadow-2xl">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-100">Setup Two-Factor Auth</h2>
+            <p className="text-slate-400 text-sm mt-1">Scan the QR code with your authenticator app to complete setup.</p>
+          </div>
+          <div className="flex justify-center items-center my-6 bg-white p-4 rounded-lg w-48 h-48 mx-auto">
+            {qrCodeUrl ? <img src={qrCodeUrl} alt="2FA QR Code" /> : <p className="text-slate-500 text-sm">Loading QR Code...</p>}
+          </div>
+          <form onSubmit={submit2FASetup} className="flex flex-col gap-4">
+            <input
+              value={otpCode} onChange={e => setOtpCode(e.target.value)} required
+              placeholder="123456" maxLength={6}
+              className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100 placeholder:text-slate-600"
+            />
+            {error && <div className="text-rose-400 text-sm bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3">{error}</div>}
+            <button type="submit" disabled={loading} className="mt-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/30 disabled:opacity-60">
+              {loading ? '...' : 'Verify & Complete Signup'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   // Render 2FA prompt if needed
@@ -189,6 +321,7 @@ export default function AuthPage() {
         </div>
 
         {/* Tabs */}
+        {mode !== 'forgot' && (
         <div className="flex bg-slate-900/60 rounded-xl p-1 mb-8 border border-slate-700/40">
           {['login', 'register'].map(m => (
             <button
@@ -204,7 +337,49 @@ export default function AuthPage() {
             </button>
           ))}
         </div>
+        )}
 
+        {mode === 'forgot' && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xl font-bold text-white mb-2">Reset Password</h2>
+            {forgotStep === 1 ? (
+              <form onSubmit={submitForgotQR} className="flex flex-col gap-4">
+                <p className="text-sm text-slate-400">Enter your email to receive a 2FA QR code for password reset.</p>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email</label>
+                  <input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} required placeholder="you@example.com" className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100 placeholder:text-slate-600" />
+                </div>
+                {error && <div className="text-rose-400 text-sm">{error}</div>}
+                <button type="submit" disabled={loading} className="mt-2 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-60">
+                  {loading ? '...' : 'Get QR Code'}
+                </button>
+                <button type="button" onClick={() => setMode('login')} className="text-slate-400 text-sm hover:text-white mt-2">Back to login</button>
+              </form>
+            ) : (
+              <form onSubmit={submitForgotReset} className="flex flex-col gap-4">
+                <p className="text-sm text-slate-400">Scan the QR code to setup your 2FA, then enter your new password and the 6-digit OTP code.</p>
+                <div className="flex justify-center items-center bg-white p-4 rounded-lg w-40 h-40 mx-auto my-2">
+                  {qrCodeUrl ? <img src={qrCodeUrl} alt="2FA QR Code" /> : <p className="text-slate-500 text-sm">Loading...</p>}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Password</label>
+                  <input type="password" value={forgotNewPassword} onChange={e => setForgotNewPassword(e.target.value)} required placeholder="••••••••" className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100 placeholder:text-slate-600" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">2FA Code</label>
+                  <input value={otpCode} onChange={e => setOtpCode(e.target.value)} required placeholder="123456" maxLength={6} className="bg-slate-900/70 border border-slate-700 rounded-xl px-4 py-3 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-100 placeholder:text-slate-600" />
+                </div>
+                {error && <div className="text-rose-400 text-sm">{error}</div>}
+                <button type="submit" disabled={loading} className="mt-2 bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-60">
+                  {loading ? '...' : 'Reset Password'}
+                </button>
+                <button type="button" onClick={() => { setForgotStep(1); setMode('login'); }} className="text-slate-400 text-sm hover:text-white mt-2">Back to login</button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {mode !== 'forgot' && (
         <form onSubmit={submit} className="flex flex-col gap-4">
           {mode === 'register' && (
             <div className="flex flex-col gap-1">
@@ -227,7 +402,12 @@ export default function AuthPage() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+              {mode === 'login' && (
+                <button type="button" onClick={() => setMode('forgot')} className="text-xs font-semibold text-indigo-400 hover:text-indigo-300">Forgot Password?</button>
+              )}
+            </div>
             <input
               name="password" type="password" value={form.password} onChange={handle} required
               placeholder="••••••••"
@@ -271,6 +451,7 @@ export default function AuthPage() {
             {loading ? '...' : mode === 'register' ? 'Create Account' : 'Sign In'}
           </button>
         </form>
+        )}
 
         {/* Social Login Options */}
         <div className="mt-6 border-t border-slate-700/50 pt-6">

@@ -4,14 +4,14 @@ from typing import Optional
 import pyotp
 import qrcode
 import io
-from backend.store import (
+from store import (
     register_user, login_user, create_token, decode_token,
     update_profile, get_profile,
     create_internship, get_all_internships, get_employer_internships,
     apply_to_internship, get_applicants, update_application_status,
     get_student_applications, compute_match, get_user, update_user_role, get_all_users_safe,
     get_notifications, mark_notifications_read,
-    set_user_otp_secret, enable_user_otp, disable_user_otp
+    set_user_otp_secret, enable_user_otp, disable_user_otp, change_password
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,6 +44,18 @@ class Login2FARequest(BaseModel):
     otp_code: str
 
 class Verify2FARequest(BaseModel):
+    otp_code: str
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+    otp_code: str
+
+class ForgotPasswordQRRequest(BaseModel):
+    email: str
+
+class ForgotPasswordResetRequest(BaseModel):
+    email: str
+    new_password: str
     otp_code: str
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -109,6 +121,39 @@ def social_login(req: SocialLoginRequest):
     token = create_token({"sub": user["email"], "role": user["role"], "full_name": user["full_name"]})
     return {"access_token": token, "token_type": "bearer", "role": user["role"], "email": user["email"]}
 
+@router.post("/forgot-password/qr")
+def forgot_password_qr(req: ForgotPasswordQRRequest):
+    user = get_user(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    secret = user.get("otp_secret")
+    if not secret:
+        secret = pyotp.random_base32()
+        set_user_otp_secret(user["email"], secret)
+        
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="InternConnect")
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+@router.post("/forgot-password/reset")
+def forgot_password_reset(req: ForgotPasswordResetRequest):
+    user = get_user(req.email)
+    if not user or not user["otp_secret"]:
+        raise HTTPException(status_code=400, detail="2FA setup not initiated")
+        
+    totp = pyotp.TOTP(user["otp_secret"])
+    if not totp.verify(req.otp_code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+
+    change_password(user["email"], req.new_password)
+    if not user["otp_enabled"]:
+        enable_user_otp(user["email"])
+    
+    return {"ok": True, "detail": "Password reset successfully"}
+
 @router.get("/me")
 def me(authorization: str = Header(...)):
     payload = get_current_user(authorization)
@@ -158,6 +203,40 @@ def disable_2fa(authorization: str = Header(...)):
     payload = get_current_user(authorization)
     disable_user_otp(payload["sub"])
     return {"ok": True, "detail": "2FA has been disabled."}
+
+@router.get("/2fa/qr")
+def get_2fa_qr(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    user = get_user(payload["sub"])
+    secret = user.get("otp_secret")
+    if not secret:
+        secret = pyotp.random_base32()
+        set_user_otp_secret(user["email"], secret)
+        
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="InternConnect")
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+@router.post("/change-password")
+def change_password_endpoint(req: ChangePasswordRequest, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    user = get_user(payload["sub"])
+    
+    if not user or not user["otp_secret"]:
+        raise HTTPException(status_code=400, detail="2FA setup not initiated")
+
+    totp = pyotp.TOTP(user["otp_secret"])
+    if not totp.verify(req.otp_code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+
+    change_password(user["email"], req.new_password)
+    if not user["otp_enabled"]:
+        enable_user_otp(user["email"])
+    
+    return {"ok": True, "detail": "Password changed successfully"}
 
 # ─── Admin Dashboard ──────────────────────────────────────────────────────────
 
@@ -221,6 +300,17 @@ def my_internships(authorization: str = Header(...)):
     payload = get_current_user(authorization)
     return get_employer_internships(payload["sub"])
 
+@router.delete("/internships/{internship_id}")
+def remove_internship(internship_id: int, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "employer":
+        raise HTTPException(status_code=403, detail="Only employers can delete")
+    from store import delete_internship
+    success = delete_internship(internship_id, payload["sub"])
+    if not success:
+        raise HTTPException(status_code=404, detail="Internship not found or unauthorized")
+    return {"ok": True}
+
 # ─── Applications ─────────────────────────────────────────────────────────────
 
 @router.post("/internships/{internship_id}/apply")
@@ -266,7 +356,7 @@ def my_applications(authorization: str = Header(...)):
 def match_me(internship_id: int, authorization: str = Header(...)):
     payload = get_current_user(authorization)
     profile = get_profile(payload["sub"])
-    from backend.store import get_internship
+    from store import get_internship
     intern = get_internship(internship_id)
     if not intern:
         raise HTTPException(status_code=404, detail="Internship not found")

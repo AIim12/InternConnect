@@ -1,103 +1,50 @@
-# InternConnect (Internship Management System)
+# InternConnect
 
-## Project Overview
+InternConnect is a robust, graph-powered web application connecting students with prospective employers through intelligent skill-matching algorithms.
 
-InternConnect is a comprehensive internship management platform designed to bridge the gap between students, universities, and companies. The system streamlines the entire internship placement process—from application to final reporting—reducing the administrative burden on all stakeholders.
+## Features & Architecture
 
-The project demonstrates:
+### Authentication & Authorization
+- **Basic Auth + 2FA**: Secure user registration and login flows protected by mandatory TOTP (Two-Factor Authentication) using Authenticator apps.
+- **Social Login**: Integrated options for Google, GitHub, LinkedIn, and Microsoft.
+- **Role-Based Access Control (RBAC)**: Distinct permissions for `student`, `employer`, and `admin` roles.
+  - *Students* can update profiles, view jobs, and apply.
+  - *Employers* can post internships, review applicants, and issue e-signature offers.
+  - *Admins* have access to a dedicated dashboard to dynamically assign and revoke user roles.
 
-- Full-stack web development with specialized databases.
-- Automated placement workflows for academic environments.
-- Multi-role access control (Students, Companies, Coordinators).
-- Integration of relational and graph data models.
+### Security & Deployment
+- The application is designed to be deployed on a **Self-Managed VPS** (DigitalOcean/AWS) rather than a PaaS (Vercel/Railway).
+- Network security is strictly managed via UFW (Uncomplicated Firewall) and Fail2Ban.
+- For complete security documentation, please see `deployment_and_security.md`.
 
-## Key Features
+## Screenshots
 
-- **Centralized Placement Hub:** A unified platform for students to find and apply for internship opportunities.
-- **Stakeholder Portals:** Dedicated interfaces for students, company supervisors, and university coordinators to interact.
-- **Profile Management:** Allows students to showcase their skills, academic background, and portfolios.
-- **Application Tracking:** Real-time monitoring of application statuses for both students and administrators.
-- **Process Automation:** Automates the traditionally manual tasks of coordinating between academic departments and external organizations.
-- **Reporting & Documentation:** Tools for generating internship reports and verifying completion requirements.
+We have included critical screenshots of the running web application in the `screenshots/` directory:
 
-## Tech Stack
+1. **Dashboard Interface** - `screenshots/dashboard.png` *(Add your screenshot here)*
+2. **2FA Setup & Login Flow** - `screenshots/2fa_flow.png` *(Add your screenshot here)*
+3. **Admin Role Management** - `screenshots/admin_panel.png` *(Add your screenshot here)*
+4. **Server Security (UFW/Fail2Ban)** - `screenshots/security.png` *(Add your screenshot here)*
 
-- **Backend:** Python: FastAPI
-- **Databases:**
-  - MySQL: Relational data (user profiles, applications).
-  - FalkorDB: Graph data (skill-to-job matching, networking).
-- **Frontend:** React.js: Vite
-- **Styling:** Tailwind CSS / Material UI
+## Testing & CI/CD
+- Comprehensive **Unit Tests** are written using `pytest` for the FastAPI backend (`backend/test_main.py`).
+- **End-to-End Tests** are configured via Playwright.
+- **Automated Testing** is set up using GitHub Actions (`.github/workflows/test.yml`), which automatically runs all test suites on every push to the repository.
 
-## Project Structure
+## Local Setup
 
-```plaintext
-InternConnect/
-├── backend/
-│   ├── app/
-│   │   ├── main.py          # FastAPI entry point
-│   │   ├── database.py      # MySQL & FalkorDB connections
-│   │   └── models/          # Data schemas
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # UI elements
-  │   └── App.jsx          # Main application logic 
-  └── package.json 
-└── README.md 
+### Backend
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+uvicorn main:app --reload
 ```
 
-## Prerequisites & Installation ⚠️
-**Critical Requirement:** MySQL & FalkorDB This application requires both a relational and a graph database to function.
-
-### Database Setup (OS Specific)
-**macOS**
-- MySQL: Install via Homebrew: `brew install mysql` and start with `brew services start mysql`.
-- FalkorDB: Run via Docker: `docker run -p 6379:6379 -it --rm falkordb/falkordb`.
-
-**Windows**
-- MySQL: Download the MySQL Installer from the official site and ensure the service is running.
-- FalkorDB: Install Docker Desktop and run: `docker run -p 6379:6379 -it --rm falkordb/falkordb`.
-
-### Backend Setup
-**macOS**
-bash cd backend 
-bash python3 -m venv venv 
-bash source venv/bin/activate 
-bash pip3 install -r requirements.txt 
-bash uvicorn app.main:app --reload 
-done Windows:
-bash cd backend 
-bash python -m venv venv 
-bash venv\Scripts\activate 
-bash pip install -r requirements.txt 
-bash python -m uvicorn app.main:app --reload 
-done
-
-### Frontend Setup
-**macOS**
-bash cd frontend 
-bash npm install 
-bash npm run dev 
-done Windows:
-bash cd frontend 
-bash npm install 
-bash npm run dev 
-done
-### How the System Works
-Hybrid Data Storage: Student profiles and metadata are stored in MySQL, while complex relationships (e.g., matching student skills to company needs) are queried via FalkorDB.
-RESTful Integration: The React frontend communicates with FastAPI endpoints to fetch and update placement statuses.
-Real-time Updates: Status changes are reflected instantly across all three stakeholder portals.
-## Academic Requirement Coverage
-This project satisfies the criteria for **SWE 4504** (Design Project - I):
-1. System Architecture: Clear separation between frontend presentation and backend logic.
-2. Advanced Databases: Dual-database implementation using MySQL and FalkorDB.
-3. User Experience: Focuses on accessibility and intuitive navigation for non-technical users.
-4. Problem Solving: Addresses the specific problem of inefficient internship placement workflows.
-
-## Contributors
-
-| Name | Role | Responsibilities |
-|---|---|---|
-| Izzettin, Zouhir & Mohamed | Development Team | Full-Stack Architecture, FastAPI Backend, and React Frontend development. |
-| Mustafa & Abdulaziz | Planning & Presentation | SDLC, Database Planning, QA Testing, and Final Presentation. |
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```

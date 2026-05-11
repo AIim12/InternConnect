@@ -1,13 +1,25 @@
+import os
+from dotenv import load_dotenv
 from falkordb import FalkorDB
+
+# Load environment variables from backend/.env when database module loads
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
 class GraphDatabase:
     _instance = None
 
-    def __new__(cls, host='localhost', port=6379):
+    def __new__(cls, host=None, port=None):
         if cls._instance is None:
             cls._instance = super(GraphDatabase, cls).__new__(cls)
             try:
-                cls._instance.client = FalkorDB(host=host, port=port)
+                host = host or os.getenv('FALKORDB_HOST', 'localhost')
+                port = int(port or os.getenv('FALKORDB_PORT', 6379))
+                password = os.getenv('FALKORDB_PASSWORD')
+                params = {'host': host, 'port': port}
+                if password:
+                    params['password'] = password
+
+                cls._instance.client = FalkorDB(**params)
                 cls._instance.graph = cls._instance.client.select_graph("internconnect")
                 print("Connected to FalkorDB")
             except Exception as e:

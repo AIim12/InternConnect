@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from backend.repositories.match_repo import MatchRepository
+from repositories.match_repo import MatchRepository
 
 router = APIRouter(prefix="/match", tags=["matching"])
 

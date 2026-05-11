@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from backend.repositories.match_repo import MatchRepository
+from repositories.match_repo import MatchRepository
 
 router = APIRouter(prefix="/graph", tags=["graph"])
 
