@@ -1,13 +1,17 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Response
 from pydantic import BaseModel
 from typing import Optional
+import pyotp
+import qrcode
+import io
 from backend.store import (
     register_user, login_user, create_token, decode_token,
     update_profile, get_profile,
     create_internship, get_all_internships, get_employer_internships,
     apply_to_internship, get_applicants, update_application_status,
-    get_student_applications, compute_match, get_user,
-    get_notifications, mark_notifications_read
+    get_student_applications, compute_match, get_user, update_user_role, get_all_users_safe,
+    get_notifications, mark_notifications_read,
+    set_user_otp_secret, enable_user_otp, disable_user_otp
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,6 +32,19 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = ""
     skills: Optional[list] = []  # list of skill name strings
     major: Optional[str] = ""
+
+class SocialLoginRequest(BaseModel):
+    provider: str
+    email: str
+    full_name: str
+    role: str = "student"
+
+class Login2FARequest(BaseModel):
+    email: str
+    otp_code: str
+
+class Verify2FARequest(BaseModel):
+    otp_code: str
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -56,8 +73,41 @@ def login(req: LoginRequest):
     user = login_user(req.email, req.password)
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    # 2FA Check: if enabled, don't issue token yet. Signal to UI to ask for OTP.
+    if user["otp_enabled"]:
+        return {"2fa_required": True, "email": user["email"]}
+
     token = create_token({"sub": user["email"], "role": user["role"], "full_name": user["full_name"]})
     return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+
+@router.post("/login/2fa")
+def login_2fa(req: Login2FARequest):
+    user = get_user(req.email)
+    if not user or not user["otp_enabled"] or not user["otp_secret"]:
+        raise HTTPException(status_code=401, detail="2FA not enabled or user not found")
+
+    totp = pyotp.TOTP(user["otp_secret"])
+    if not totp.verify(req.otp_code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+
+    token = create_token({"sub": user["email"], "role": user["role"], "full_name": user["full_name"]})
+    return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+
+@router.post("/social-login")
+def social_login(req: SocialLoginRequest):
+    user = get_user(req.email)
+    if not user:
+        # Auto-register new user from social provider
+        register_user(req.email, "SocialLoginSecurePass123!", req.full_name, req.role)
+        user = get_user(req.email)
+    
+    # Check 2FA even for social login (adds security points)
+    if user["otp_enabled"]:
+        return {"2fa_required": True, "email": user["email"]}
+
+    token = create_token({"sub": user["email"], "role": user["role"], "full_name": user["full_name"]})
+    return {"access_token": token, "token_type": "bearer", "role": user["role"], "email": user["email"]}
 
 @router.get("/me")
 def me(authorization: str = Header(...)):
@@ -65,7 +115,70 @@ def me(authorization: str = Header(...)):
     user = get_user(payload["sub"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"email": user["email"], "full_name": user["full_name"], "role": user["role"]}
+    return {"email": user["email"], "full_name": user["full_name"], "role": user["role"], "otp_enabled": user["otp_enabled"]}
+
+# ─── Two-Factor Authentication (2FA) ──────────────────────────────────────────
+
+@router.get("/2fa/setup")
+def setup_2fa(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    user_email = payload["sub"]
+
+    # Generate a new secret and store it for the user
+    secret = pyotp.random_base32()
+    set_user_otp_secret(user_email, secret)
+
+    # Create provisioning URI for authenticator apps
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user_email, issuer_name="InternConnect")
+
+    # Generate QR code image in memory
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+@router.post("/2fa/verify")
+def verify_2fa(req: Verify2FARequest, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    user = get_user(payload["sub"])
+    if not user or not user["otp_secret"]:
+        raise HTTPException(status_code=400, detail="2FA setup not initiated")
+
+    totp = pyotp.TOTP(user["otp_secret"])
+    if not totp.verify(req.otp_code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code. Please try again.")
+
+    enable_user_otp(user["email"])
+    return {"ok": True, "detail": "2FA has been successfully enabled!"}
+
+@router.post("/2fa/disable")
+def disable_2fa(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    disable_user_otp(payload["sub"])
+    return {"ok": True, "detail": "2FA has been disabled."}
+
+# ─── Admin Dashboard ──────────────────────────────────────────────────────────
+
+class RoleUpdate(BaseModel):
+    new_role: str
+
+@router.get("/admin/users")
+def fetch_all_users(authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Access denied: Admins only")
+    return get_all_users_safe()
+
+@router.patch("/admin/users/{email}/role")
+def change_user_role(email: str, req: RoleUpdate, authorization: str = Header(...)):
+    payload = get_current_user(authorization)
+    if payload["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Access denied: Admins only")
+    if payload.get("sub") == email:
+        raise HTTPException(status_code=400, detail="Admins cannot change their own role.")
+    return update_user_role(email, req.new_role)
 
 # ─── Student profile ──────────────────────────────────────────────────────────
 
@@ -153,8 +266,8 @@ def my_applications(authorization: str = Header(...)):
 def match_me(internship_id: int, authorization: str = Header(...)):
     payload = get_current_user(authorization)
     profile = get_profile(payload["sub"])
-    from backend.store import _internships
-    intern = next((i for i in _internships if i["id"] == internship_id), None)
+    from backend.store import get_internship
+    intern = get_internship(internship_id)
     if not intern:
         raise HTTPException(status_code=404, detail="Internship not found")
     return compute_match(profile.get("skills", []), intern.get("required_skills", []))

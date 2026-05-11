@@ -294,6 +294,10 @@ def seed():
 
     init_db()
 
+    # Register Admin
+    register_user("admin@internconnect.com", "admin123", "System Admin", "admin")
+    print("✅ Created Admin account.")
+
     # Register employers
     for e in EMPLOYERS:
         register_user(e["email"], e["password"], e["full_name"], "employer")
@@ -339,7 +343,9 @@ def seed():
     print(f"✅ Created {len(applications)} applications with realistic statuses.")
 
     print("\n🎉 Seed complete! Here are the demo accounts:\n")
-    print("━━━━ STUDENTS ━━━━")
+    print("━━━━ ADMIN ━━━━")
+    print("  admin@internconnect.com  /  password: admin123")
+    print("\n━━━━ STUDENTS ━━━━")
     for s in STUDENTS:
         print(f"  {s['email']}  /  password: pass1234")
     print("\n━━━━ EMPLOYERS ━━━━")

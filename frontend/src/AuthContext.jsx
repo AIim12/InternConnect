@@ -7,18 +7,21 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(!!localStorage.getItem('token'));
 
-  useEffect(() => {
+  const refetchUser = () => {
     if (token) {
+      setLoading(true);
       fetch('http://127.0.0.1:8000/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(r => r.ok ? r.json() : null)
-        .then(u => {
-          if (u) setUser(u); else logout();
-        })
+        .then(u => { if (u) setUser(u); else logout(); })
         .catch(logout)
         .finally(() => setLoading(false));
     }
+  };
+
+  useEffect(() => {
+    refetchUser();
   }, [token]);
 
   const login = (tok, userData) => {
@@ -44,7 +47,7 @@ export function AuthProvider({ children }) {
     });
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, authFetch, refetchUser }}>
       {children}
     </AuthContext.Provider>
   );

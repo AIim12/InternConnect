@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronRight, Briefcase, Circle, LogOut, User, Bell, Star } from 'lucide-react';
+import { ChevronRight, Briefcase, Circle, LogOut, User, Bell, Star, Shield } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -30,7 +30,7 @@ const getRating = (email) => {
 };
 
 export default function StudentDashboard() {
-  const { user, authFetch, logout } = useAuth();
+  const { user, authFetch, logout, refetchUser } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('jobs');
@@ -46,6 +46,10 @@ export default function StudentDashboard() {
   const [skillInput, setSkillInput] = useState('');
   const [applyingId, setApplyingId] = useState(null);
   const [toast, setToast] = useState('');
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [setupError, setSetupError] = useState('');
 
   useEffect(() => {
     authFetch('http://127.0.0.1:8000/auth/profile').then(r => r.json()).then(setProfile);
@@ -85,6 +89,45 @@ export default function StudentDashboard() {
     } else {
       showToast(data.detail || 'Error');
     }
+  };
+
+  const start2FASetup = async () => {
+    setSetupError('');
+    setOtpCode('');
+    setShow2FASetup(true);
+    const res = await authFetch('http://127.0.0.1:8000/auth/2fa/setup');
+    if (res.ok) {
+      const blob = await res.blob();
+      setQrCodeUrl(URL.createObjectURL(blob));
+    } else {
+      setSetupError('Could not load QR code. Please try again.');
+    }
+  };
+
+  const verify2FASetup = async (e) => {
+    e.preventDefault();
+    setSetupError('');
+    const res = await authFetch('http://127.0.0.1:8000/auth/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ otp_code: otpCode }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast('2FA enabled successfully!');
+      setShow2FASetup(false);
+      refetchUser();
+    } else {
+      setSetupError(data.detail || 'Verification failed. The code may be incorrect.');
+    }
+  };
+
+  const disable2FA = async () => {
+    if (!window.confirm("Are you sure you want to disable 2FA?")) return;
+    const res = await authFetch('http://127.0.0.1:8000/auth/2fa/disable', { method: 'POST' });
+    if (res.ok) {
+      showToast('2FA disabled successfully.');
+      refetchUser();
+    } else { showToast('Failed to disable 2FA.'); }
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
@@ -148,6 +191,35 @@ export default function StudentDashboard() {
       {toast && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-xl font-semibold animate-bounce">
           {toast}
+        </div>
+      )}
+
+      {/* 2FA Setup Modal */}
+      {show2FASetup && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-slate-700 shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-2">Enable Two-Factor Authentication</h2>
+            <p className="text-slate-400 text-sm mb-6">Scan the QR code with your authenticator app, then enter the 6-digit code below.</p>
+
+            <div className="flex justify-center items-center my-6 bg-white p-4 rounded-lg w-48 h-48 mx-auto">
+              {qrCodeUrl ? <img src={qrCodeUrl} alt="2FA QR Code" /> : <p className="text-slate-500 text-sm">Loading QR Code...</p>}
+            </div>
+
+            <form onSubmit={verify2FASetup}>
+              <input
+                value={otpCode}
+                onChange={e => setOtpCode(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+                className="w-full text-center text-2xl tracking-[0.5em] bg-slate-900 border border-slate-700 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {setupError && <p className="text-rose-400 text-sm mt-2 text-center">{setupError}</p>}
+              <div className="flex gap-4 mt-6">
+                <button type="button" onClick={() => setShow2FASetup(false)} className="flex-1 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl bg-indigo-500 text-white font-bold hover:bg-indigo-600 transition-colors">Verify & Enable</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -328,6 +400,27 @@ export default function StudentDashboard() {
       {/* ── PROFILE TAB ── */}
       {tab === 'profile' && (
         <div className="max-w-2xl flex flex-col gap-6">
+          <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-sm">
+            <h2 className="text-xl font-bold mb-5 flex items-center gap-2"><Shield className="w-5 h-5 text-indigo-400" /> Security</h2>
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold text-slate-200">Two-Factor Authentication (2FA)</h3>
+                <p className="text-sm text-slate-400">
+                  {user?.otp_enabled ? '2FA is currently enabled on your account.' : 'Add an extra layer of security to your account.'}
+                </p>
+              </div>
+              {user?.otp_enabled ? (
+                <button onClick={disable2FA} className="bg-rose-500/20 border border-rose-500/50 text-rose-300 font-bold py-2 px-4 rounded-xl hover:bg-rose-500/30 transition-colors">
+                  Disable
+                </button>
+              ) : (
+                <button onClick={start2FASetup} className="bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl hover:bg-indigo-600 transition-colors">
+                  Enable
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-sm">
             <h2 className="text-xl font-bold mb-5 flex items-center gap-2"><User className="w-5 h-5 text-indigo-400" /> Your CV Profile</h2>
 

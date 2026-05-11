@@ -5,6 +5,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import EmployerDashboard from './pages/EmployerDashboard';
 import FAQ from './pages/FAQ';
 import AuthPage from './pages/AuthPage';
+import AdminDashboard from './pages/AdminDashboard';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -18,7 +19,7 @@ function Navbar() {
         <Link to="/faq" className="text-slate-400 hover:text-slate-100 transition-colors">FAQ</Link>
         {user ? (
           <Link
-            to={user.role === 'employer' ? '/employer' : '/student'}
+            to={user.role === 'admin' ? '/admin' : user.role === 'employer' ? '/employer' : '/student'}
             className="bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg font-semibold transition-colors"
           >
             Dashboard
@@ -37,7 +38,10 @@ function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/auth" />;
-  if (role && user.role !== role) return <Navigate to={user.role === 'employer' ? '/employer' : '/student'} />;
+  if (role && user.role !== role) {
+    if (user.role === 'admin') return <Navigate to="/admin" />;
+    return <Navigate to={user.role === 'employer' ? '/employer' : '/student'} />;
+  }
   return children;
 }
 
@@ -49,6 +53,9 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/faq" element={<FAQ />} />
+        <Route path="/admin" element={
+          <ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>
+        } />
         <Route path="/student" element={
           <ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>
         } />

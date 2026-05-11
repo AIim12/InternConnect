@@ -7,7 +7,7 @@ import sqlite3
 import bcrypt as _bcrypt
 import jwt
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SECRET_KEY = "supersecretkey_internconnect_2026"
@@ -32,7 +32,9 @@ def init_db():
             email      TEXT PRIMARY KEY,
             full_name  TEXT NOT NULL,
             password   TEXT NOT NULL,
-            role       TEXT NOT NULL CHECK(role IN ('student','employer'))
+            role       TEXT NOT NULL CHECK(role IN ('student','employer','admin')),
+            otp_secret TEXT,
+            otp_enabled INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS student_profiles (
@@ -84,7 +86,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ─── JWT helpers ──────────────────────────────────────────────────────────────
 
 def create_token(data: dict) -> str:
-    payload = {**data, "exp": datetime.utcnow() + timedelta(hours=12)}
+    payload = {**data, "exp": datetime.now(timezone.utc) + timedelta(hours=12)}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str) -> dict:
@@ -120,6 +122,28 @@ def get_user(email: str):
     with _conn() as con:
         row = con.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     return dict(row) if row else None
+
+# ─── Admin operations ─────────────────────────────────────────────────────────
+
+def update_user_role(email: str, new_role: str) -> dict:
+    with _conn() as con:
+        con.execute("UPDATE users SET role=? WHERE email=?", (new_role, email))
+    return {"ok": True}
+
+def set_user_otp_secret(email: str, secret: str):
+    with _conn() as con:
+        con.execute("UPDATE users SET otp_secret=? WHERE email=?", (secret, email))
+    return {"ok": True}
+
+def enable_user_otp(email: str):
+    with _conn() as con:
+        con.execute("UPDATE users SET otp_enabled=1 WHERE email=?", (email,))
+    return {"ok": True}
+
+def disable_user_otp(email: str):
+    with _conn() as con:
+        con.execute("UPDATE users SET otp_enabled=0, otp_secret=NULL WHERE email=?", (email,))
+    return {"ok": True}
 
 # ─── Student profile ──────────────────────────────────────────────────────────
 

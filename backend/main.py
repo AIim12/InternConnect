@@ -2,13 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.routes import auth, matching, skills, internships, graph
 from backend.store import init_db, get_all_users_safe, get_all_internships, get_all_applications, get_all_students_with_profiles
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="InternConnect Graph API")
-
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
     print("✅ SQLite database initialised at data.db")
+    yield
+
+app = FastAPI(title="InternConnect Graph API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
